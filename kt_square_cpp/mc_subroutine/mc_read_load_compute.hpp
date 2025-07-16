@@ -115,8 +115,14 @@ public:
                     std::cerr << "N must be >0" << std::endl;
                     std::exit(1);
                 }
-               
+                if (N0 %2!= 0)
+                {
+                    std::cerr << "N must be even" << std::endl;
+                    std::exit(1);
+                }
                 std::cout << "N0=N1=" << N0 << std::endl;
+                this->total_components_num=3*N0*N1;
+                std::cout<<"total_components_num="<<total_components_num<<std::endl;
                 paramCounter++;
                 continue;
             } //end N
@@ -188,7 +194,7 @@ public:
                 continue;
             }//end sweep_multiple
             //read num_parallel
-            if (paramCounter == 10)
+            if (paramCounter == 13)
             {
                 iss>>this->num_parallel;
                 std::cout<<"num_parallel="<<num_parallel<<std::endl;
@@ -200,16 +206,12 @@ public:
         //allocate memory for data
         try
         {
-            this->U_data_all_ptr = std::shared_ptr<double[]>(new double[sweepToWrite],
-                                                                std::default_delete<double[]>());
-            this->s_all_ptr = std::shared_ptr<double[]>(new double[sweepToWrite * N0 * N1],
-                                                             std::default_delete<double[]>());
+            this->U_data_all_ptr = new double[sweepToWrite];
+            this->s_all_ptr = new double[sweepToWrite * total_components_num];
 
-            this->s_init=std::shared_ptr<double[]>(new double[N0 * N1],
-                                                          std::default_delete<double[]>());
+            this->s_init=new double[total_components_num];
 
-            this->M_all_ptr=std::shared_ptr<double[]>(new double[sweepToWrite],
-                                                                std::default_delete<double[]>());
+            this->M_all_ptr=new double[sweepToWrite*3];
 
 
         }
@@ -227,6 +229,11 @@ public:
         {
             fs::create_directories(out_U_path);
         }
+        this->out_s_path = this->U_s_dataDir + "/s/";
+        if (!fs::is_directory(out_s_path) || !fs::exists(out_s_path))
+        {
+            fs::create_directories(out_s_path);
+        }
         this->out_M_path= this->U_s_dataDir + "/M/";
         if (!fs::is_directory(out_M_path) || !fs::exists(out_M_path))
         {
@@ -235,15 +242,102 @@ public:
 
     } //end constructor
 
+    // Destructor
+    ~mc_computation() {
+        delete[] U_data_all_ptr;  // Use delete[] for arrays!
+        delete []s_all_ptr;
+        delete []s_init;
+        delete [] M_all_ptr;
+    } //end Destructor
 
 public:
+    void init_and_run();
 
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..1)
+    /// @param s_vec flattened s array
+    /// @return Kitaev energy of flattened_ind_center and ind_neighbor, y neighbors
+    double H_local_Kitaev_y(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..1)
+    /// @param s_vec flattened s array
+    /// @return Kitaev energy of flattened_ind_center and ind_neighbor, x neighbors
+    double H_local_Kitaev_x(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return biquadratic energy of flattened_ind_center and ind_neighbor, diagonal neighbors
+    double H_local_biquadratic_diagonal(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return biquadratic energy of flattened_ind_center and ind_neighbor, nearest neighbors
+    double H_local_biquadratic_nearest_neighbor(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return Heisenberg energy of flattened_ind_center and ind_neighbor, diagonal neighbors
+    double H_local_Heisenberg_diagonal(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return Heisenberg energy of flattened_ind_center and ind_neighbor, nearest neighbors
+    double H_local_Heisenberg_nearest(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    /// @param s_vec containing 3 components of all spins
+    /// @param flattened_ind flattened index of a spin
+    /// @param s_x x component of this spin
+    /// @param s_y y component of this spin
+    /// @param s_z z component of this spin
+    inline void get_spin_components(const double* s_vec, int flattened_ind,
+                                   double& s_x, double& s_y, double& s_z)
+    {
+        const double* spin_ptr = s_vec + (flattened_ind * 3);
+        s_x = spin_ptr[0];
+        s_y = spin_ptr[1];
+        s_z = spin_ptr[2];
+    }
+
+
+    //construct neighbors of each point, flattened index
+    void init_flattened_ind_neighbors();
+
+    //initialize A, B, C, D sublattices, flattened index
+    void init_A_B_C_D_sublattices_flattened();
+
+
+
+
+
+    ///construct nearest neighbors and diagonal neighbors around (0, 0)
+    void construct_neighbors_origin();
+
+    //initialize A, B, C, D sublattices for checkerboard update
+    void init_A_B_C_D_sublattices();
+
+    ///
+    /// @param n0
+    /// @param n1
+    /// @return flatenned index
+    int double_ind_to_flat_ind(const int& n0, const int& n1);
     void init_s();
     int mod_direction0(const int&m0);
     int mod_direction1(const int&m1);
-    void save_array_to_pickle(std::shared_ptr<const double[]> ptr, int size, const std::string& filename);
+    void save_array_to_pickle(const double* ptr, int size, const std::string& filename);
 
-    void load_pickle_data(const std::string& filename, std::shared_ptr<double[]> data_ptr, std::size_t size);
+    void load_pickle_data(const std::string& filename,  double* data_ptr, std::size_t size);
 
 
     // Template function to print the contents of a std::vector<T>
@@ -308,14 +402,39 @@ public:
     std::string out_U_path;
     std::string out_s_path;
     std::string out_M_path;
+    int total_components_num;//3*N0*N1
 
     //data in 1 flush
-    std::shared_ptr<double[]> U_data_all_ptr; //all U data
-    std::shared_ptr<double[]> s_all_ptr; //all s data
-    std::shared_ptr<double[]> M_all_ptr; //all M data
+    double * U_data_all_ptr; //all U data
+      double * s_all_ptr; //all s data
+     double * M_all_ptr; //all M data
 
     //initial value
-    std::shared_ptr<double[]> s_init;
+     double * s_init;
+
+    //sublattices for checkerboard update
+    std::vector<std::vector<int>> A_sublattice,B_sublattice,C_sublattice,D_sublattice;
+
+    std::vector<std::vector<int>> nearest_neigbors;//around (0,0)
+    std::vector<std::vector<int>> diagonal_neighbors;//around (0,0)
+
+    std::vector<std::vector<int>> neighbors_x;//around (0,0), for Kitaev x
+
+    std::vector<std::vector<int>> neighbors_y;//around (0,0), for Kitaev y
+
+    std::vector<int> flattened_A_points;
+    std::vector<int> flattened_B_points;
+    std::vector<int> flattened_C_points;
+    std::vector<int> flattened_D_points;
+
+    std::vector<std::vector<int>> flattened_ind_nearest_neighbors;
+    std::vector<std::vector<int>> flattened_ind_diagonal_neighbors;
+
+    std::vector<std::vector<int>> flattened_ind_x_neighbors;//for Kitaev x
+    std::vector<std::vector<int>> flattened_ind_y_neighbors;//for Kitaev y
+
+
+
 };
 
 #endif //MC_READ_LOAD_COMPUTE_HPP

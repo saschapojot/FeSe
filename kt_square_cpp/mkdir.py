@@ -16,7 +16,7 @@ def format_using_decimal(value, precision=4):
 
 
 
-N=24#unit cell number
+N=6#unit cell number,#must be even
 N0=N
 N1=N
 which_row=0#use which_row in param.csv

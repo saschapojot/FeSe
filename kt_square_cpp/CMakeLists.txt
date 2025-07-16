@@ -3,6 +3,8 @@ project(kt_square_cpp)
 
 set(CMAKE_CXX_STANDARD 17)
 message(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
+# Option to enable profiling
+#option(ENABLE_PROFILING "Enable gprof profiling" OFF)
 # Find Python
 find_package(Python3 REQUIRED COMPONENTS Development)
 # Set C++ standard
@@ -36,7 +38,11 @@ target_include_directories(run_mc PRIVATE
 
         ${Python3_INCLUDE_DIRS}
 )
-
+# Link options
+#if(ENABLE_PROFILING)
+#    target_link_options(run_mc PRIVATE -pg)
+#    message(STATUS "Profiling enabled with gprof")
+#endif()
 
 # Link libraries
 target_link_libraries(run_mc PRIVATE
