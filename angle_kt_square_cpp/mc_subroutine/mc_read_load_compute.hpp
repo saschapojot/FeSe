@@ -27,7 +27,7 @@ constexpr double PI = M_PI;
 class mc_computation
 {
 public:
-    mc_computation(const std::string& cppInParamsFileName)
+    mc_computation(const std::string& cppInParamsFileName):e2(std::random_device{}()),distUnif01(0.0, 1.0)
     {
         std::ifstream file(cppInParamsFileName);
         if (!file.is_open())
@@ -248,6 +248,13 @@ public:
         {
             fs::create_directories(out_M_path);
         }
+
+        this->theta_left_end=0;
+        this->theta_right_end=2.1*PI;
+
+        this->phi_left_end=0;
+        this->phi_right_end=1.1*PI;
+        this->h=0.1;//step size
     }//end constructor
 
     // Destructor
@@ -261,19 +268,107 @@ public:
     } //end Destructor
 public:
 
+    void init_and_run();
+
+    void delta_energy_update_theta(const int& flattened_ind, );
+
+    ///
+    /// @param phi_curr current value of phi, 1 spin
+    /// @param phi_next next value of phi, 1 spin
+    void proposal_uni_phi(const double& phi_curr, double & phi_next);
+
+
+    ///
+    /// @param theta_curr current value of theta, 1 spin
+    /// @param theta_next next value of theta, 1 spin
+    void proposal_uni_theta(const double& theta_curr, double & theta_next);
+
+    ///
+    /// @param x
+    /// @param leftEnd
+    /// @param rightEnd
+    /// @param eps
+    /// @return return a value within distance eps from x, on the open interval (leftEnd, rightEnd)
+    double generate_uni_open_interval(const double& x, const double& leftEnd, const double& rightEnd,
+                                      const double& eps);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..1)
+    /// @param s_vec flattened s array
+    /// @return Kitaev energy of flattened_ind_center and ind_neighbor, y neighbors
+    double H_local_Kitaev_y(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..1)
+    /// @param s_vec flattened s array
+    /// @return Kitaev energy of flattened_ind_center and ind_neighbor, x neighbors
+    double H_local_Kitaev_x(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return biquadratic energy of flattened_ind_center and ind_neighbor, diagonal neighbors
+    double H_local_biquadratic_diagonal(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return biquadratic energy of flattened_ind_center and ind_neighbor, nearest neighbors
+    double H_local_biquadratic_nearest_neighbor(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return Heisenberg energy of flattened_ind_center and ind_neighbor, diagonal neighbors
+    double H_local_Heisenberg_diagonal(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    ///
+    /// @param flattened_ind_center (flattened) index of spin to be updated
+    /// @param ind_neighbor index of spin around the center spin (0..3)
+    /// @param s_vec flattened s array
+    /// @return Heisenberg energy of flattened_ind_center and ind_neighbor, nearest neighbors
+    double H_local_Heisenberg_nearest(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
+
+    /// @param s_vec containing 3 components of all spins
+    /// @param flattened_ind flattened index of a spin
+    /// @param s_x x component of this spin
+    /// @param s_y y component of this spin
+    /// @param s_z z component of this spin
+    inline void get_spin_components(const double* s_vec, int flattened_ind,
+                                   double& s_x, double& s_y, double& s_z)
+    {
+        const double* spin_ptr = s_vec + (flattened_ind * 3);
+        s_x = spin_ptr[0];
+        s_y = spin_ptr[1];
+        s_z = spin_ptr[2];
+    }
 
 
 
+    //construct neighbors of each point, flattened index
+    void init_flattened_ind_neighbors();
+    //initialize A, B, C, D sublattices, flattened index
+    void init_A_B_C_D_sublattices_flattened();
 
+    ///construct nearest neighbors and diagonal neighbors around (0, 0)
+    void construct_neighbors_origin();
+    //initialize A, B, C, D sublattices for checkerboard update
+    void init_A_B_C_D_sublattices();
 
-
-
-
-
-
-
+    ///
+    /// @param n0
+    /// @param n1
+    /// @return flatenned index
+    int double_ind_to_flat_ind(const int& n0, const int& n1);
 
     void init_s();
+
 
     ///
     /// @param theta angle
@@ -331,6 +426,15 @@ public:
     int lattice_num;//N0*N1
     int total_components_num;//3*N0*N1
     int tot_angle_components_num;//2*N0*N1
+    int h;//step size
+
+    double theta_left_end;
+    double theta_right_end;
+    double phi_left_end;
+    double phi_right_end;
+
+    std::ranlux24_base e2;
+    std::uniform_real_distribution<> distUnif01;
 
     //data in 1 flush
     double * U_data_all_ptr; //all U data
