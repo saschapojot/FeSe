@@ -652,3 +652,463 @@ void mc_computation::proposal_uni_phi(const double& phi_curr, double & phi_next)
 {
     phi_next=this->generate_uni_open_interval(phi_curr,phi_left_end,phi_right_end,h);
 }
+
+
+///
+/// @param flattened_ind flattened index of spin to update
+/// @param theta_next proposed new theta value
+double mc_computation::delta_energy_update_theta(const double*s_vec_curr, const double* angle_vec_curr, const int& flattened_ind, const double & theta_next)
+{
+    double sx_curr=0,sy_curr=0,sz_curr=0;
+    double theta_curr=0,phi_curr=0;
+    //s_vec_curr corresponds to  angle_vec_curr
+    this->get_spin_components(s_vec_curr,flattened_ind,sx_curr,sy_curr,sz_curr);
+    this->get_angle_components(angle_vec_curr,flattened_ind,theta_curr,phi_curr);
+
+    double sx_next=0,sy_next=0,sz_next=0;
+    //proposed new spin
+    this->angles_to_spin(theta_next,phi_curr,sx_next,sy_next,sz_next);
+
+    //change in nearest Heiserberg energy
+    double E_delta_Heisengerg_nn=0;
+    double sx_neighbor, sy_neighbor, sz_neighbor;
+    for (const int& ind: this->flattened_ind_nearest_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_Heisengerg_nn+=this->delta_energy_Heisenberg_nearest(sx_curr,sy_curr,sz_curr,sx_next,sy_next,sz_next,
+           sx_neighbor,sy_neighbor, sz_neighbor);
+
+    }//end for ind
+
+    //change in diagonal Heisenberg energy
+    double E_delta_Heisenberg_diag=0;
+    for (const int & ind: this->flattened_ind_diagonal_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_Heisenberg_diag+=this->delta_energy_Heisenberg_diagonal(sx_curr,sy_curr,sz_curr,
+            sx_next,sy_next,sz_next,
+           sx_neighbor, sy_neighbor,sz_neighbor);
+    }//end for ind
+
+    //change in nearest neighbor biquadratic energy
+    double E_delta_bq_nn=0;
+    for (const int& ind:this->flattened_ind_nearest_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_bq_nn+=this->delta_energy_biquadratic_nearest_neighbor(sx_curr,sy_curr,sz_curr,
+            sx_next,sy_next,sz_next,
+            sx_neighbor,sy_neighbor,sz_neighbor);
+
+    }//end for ind
+
+    //change in diagonal biquadratic energy
+    double E_delta_bq_diag=0;
+    for (const int& ind:this->flattened_ind_diagonal_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_bq_diag+=this->delta_energy_biquadratic_diagonal(sx_curr,sy_curr,sz_curr,
+            sx_next,sy_next,sz_next,
+            sx_neighbor,sy_neighbor,sz_neighbor);
+    }//end for ind
+
+    //change in x Kitaev  energy
+    double E_delta_kt_x=0;
+    for (const int& ind:this->flattened_ind_x_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_kt_x+=this->delta_energy_kitaev_x(sx_curr,sx_next,sx_neighbor);
+    }//end for ind
+
+    //change in y Kitaev  energy
+    double E_delta_kt_y=0;
+    for (const int& ind: this->flattened_ind_y_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+
+        E_delta_kt_y+=this->delta_energy_kitaev_y(sy_curr,sy_next,sy_neighbor);
+
+    }//end for ind
+
+    return E_delta_Heisengerg_nn+E_delta_Heisenberg_diag+E_delta_bq_nn+E_delta_bq_diag+E_delta_kt_x+E_delta_kt_y;
+
+}//end delta_energy_update_theta
+
+
+
+
+
+///
+/// @param sx_curr sx, current value
+/// @param sy_curr sy, current value
+/// @param sz_curr sz, current value
+/// @param sx_next sx, next value
+/// @param sy_next sy, next value
+/// @param sz_next sz, next value
+/// @param sx_neighbor sx, neighbor
+/// @param sy_neighbor sy, neighbor
+/// @param sz_neighbor sz, neighbor
+/// @return change in nearest neighbor Heisenberg energy
+double  mc_computation::delta_energy_Heisenberg_nearest(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                       const double & sx_next, const double &sy_next, const double & sz_next,
+                                       const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor)
+{
+
+
+    double E_curr=this->J11*(sx_curr*sx_neighbor+sy_curr*sy_neighbor+sz_curr*sz_neighbor);
+
+    double E_next=this->J11*(sx_next*sx_neighbor+sy_next*sy_neighbor+sz_next*sz_neighbor);
+
+    return E_next-E_curr;
+}
+
+
+
+///
+/// @param sx_curr sx, current value
+/// @param sy_curr sy, current value
+/// @param sz_curr sz, current value
+/// @param sx_next sx, next value
+/// @param sy_next sy, next value
+/// @param sz_next sz, next value
+/// @param sx_neighbor sx, neighbor
+/// @param sy_neighbor sy, neighbor
+/// @param sz_neighbor sz, neighbor
+/// @return change in diagonal Heisenberg energy
+double mc_computation::delta_energy_Heisenberg_diagonal(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                       const double & sx_next, const double &sy_next, const double & sz_next,
+                                       const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor)
+{
+
+    double E_curr=this->J21*(sx_curr*sx_neighbor+sy_curr*sy_neighbor+sz_curr*sz_neighbor);
+
+    double E_next=this->J21*(sx_next*sx_neighbor+sy_next*sy_neighbor+sz_next*sz_neighbor);
+
+    return E_next-E_curr;
+}
+
+
+
+/// @param sx_curr sx, current value
+/// @param sy_curr sy, current value
+/// @param sz_curr sz, current value
+/// @param sx_next sx, next value
+/// @param sy_next sy, next value
+/// @param sz_next sz, next value
+/// @param sx_neighbor sx, neighbor
+/// @param sy_neighbor sy, neighbor
+/// @param sz_neighbor sz, neighbor
+/// @return change in diagonal biquadratic energy
+double  mc_computation::delta_energy_biquadratic_nearest_neighbor(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                       const double & sx_next, const double &sy_next, const double & sz_next,
+                                       const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor)
+{
+
+    double prod_curr=sx_curr*sx_neighbor+sy_curr*sy_neighbor+sz_curr*sz_neighbor;
+
+    double prod_next=sx_next*sx_neighbor+sy_next*sy_neighbor+sz_curr*sz_neighbor;
+
+    double E_curr=this->J12*std::pow(prod_curr,2.0);
+
+    double E_next=this->J12*std::pow(prod_next,2.0);
+
+    return E_next-E_curr;
+
+
+}
+
+
+
+
+/// @param sx_curr sx, current value
+/// @param sy_curr sy, current value
+/// @param sz_curr sz, current value
+/// @param sx_next sx, next value
+/// @param sy_next sy, next value
+/// @param sz_next sz, next value
+/// @param sx_neighbor sx, neighbor
+/// @param sy_neighbor sy, neighbor
+/// @param sz_neighbor sz, neighbor
+/// @return change in diagonal biquadratic energy
+double mc_computation::delta_energy_biquadratic_diagonal(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                       const double & sx_next, const double &sy_next, const double & sz_next,
+                                       const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor)
+{
+    double prod_curr=sx_curr*sx_neighbor+sy_curr*sy_neighbor+sz_curr*sz_neighbor;
+
+    double prod_next=sx_next*sx_neighbor+sy_next*sy_neighbor+sz_curr*sz_neighbor;
+
+    double E_curr=this->J22*std::pow(prod_curr,2.0);
+
+    double E_next=this->J22*std::pow(prod_next,2.0);
+
+    return E_next-E_curr;
+
+}
+
+
+///
+/// @param sx_curr sx, current value
+/// @param sx_next sx, next value
+/// @param sx_neighbor sx, neighbor
+/// @return change in Kitaev energy, x term
+double mc_computation::delta_energy_kitaev_x(const double & sx_curr,const double & sx_next,const double & sx_neighbor)
+{
+
+    double E_curr=this->K*sx_curr*sx_neighbor;
+
+    double E_next=this->K*sx_next*sx_neighbor;
+
+    return E_next-E_curr;
+}
+
+
+///
+/// @param sy_curr sy, current value
+/// @param sy_next sy, next value
+/// @param sy_neighbor sy, neighbor
+/// @return change in Kitaev energy, y term
+double mc_computation::delta_energy_kitaev_y(const double &sy_curr,const double &sy_next,const double &sy_neighbor)
+{
+
+    double E_curr=this->K*sy_curr*sy_neighbor;
+
+    double E_next=this->K*sy_next*sy_neighbor;
+
+    return E_next-E_curr;
+}
+
+
+
+///
+/// @param s_vec_curr  all current spin values
+/// @param angle_vec_curr all current angle values
+/// @param flattened_ind flattened index of the spin to update
+/// @param phi_next proposed phi value
+/// @return change in energy
+double mc_computation::delta_energy_update_phi(const double*s_vec_curr, const double* angle_vec_curr,const int& flattened_ind,const double & phi_next)
+{
+    double sx_curr=0,sy_curr=0,sz_curr=0;
+    double theta_curr=0,phi_curr=0;
+    //s_vec_curr corresponds to  angle_vec_curr
+    this->get_spin_components(s_vec_curr,flattened_ind,sx_curr,sy_curr,sz_curr);
+
+    this->get_angle_components(angle_vec_curr,flattened_ind,theta_curr,phi_curr);
+    double sx_next=0,sy_next=0,sz_next=0;
+    //proposed new spin
+    this->angles_to_spin(theta_curr,phi_next,sx_next,sy_next,sz_next);
+    //change in nearest Heiserberg energy
+    double E_delta_Heisengerg_nn=0;
+    double sx_neighbor, sy_neighbor, sz_neighbor;
+    for (const int& ind: this->flattened_ind_nearest_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_Heisengerg_nn+=this->delta_energy_Heisenberg_nearest(sx_curr,sy_curr,sz_curr,sx_next,sy_next,sz_next,
+           sx_neighbor,sy_neighbor, sz_neighbor);
+
+    }//end for ind
+
+    //change in diagonal Heisenberg energy
+    double E_delta_Heisenberg_diag=0;
+    for (const int & ind: this->flattened_ind_diagonal_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_Heisenberg_diag+=this->delta_energy_Heisenberg_diagonal(sx_curr,sy_curr,sz_curr,
+            sx_next,sy_next,sz_next,
+           sx_neighbor, sy_neighbor,sz_neighbor);
+    }//end for ind
+
+    //change in nearest neighbor biquadratic energy
+    double E_delta_bq_nn=0;
+    for (const int& ind:this->flattened_ind_nearest_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_bq_nn+=this->delta_energy_biquadratic_nearest_neighbor(sx_curr,sy_curr,sz_curr,
+            sx_next,sy_next,sz_next,
+            sx_neighbor,sy_neighbor,sz_neighbor);
+
+    }//end for ind
+    //change in diagonal biquadratic energy
+    double E_delta_bq_diag=0;
+    for (const int& ind:this->flattened_ind_diagonal_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_bq_diag+=this->delta_energy_biquadratic_diagonal(sx_curr,sy_curr,sz_curr,
+            sx_next,sy_next,sz_next,
+            sx_neighbor,sy_neighbor,sz_neighbor);
+    }//end for ind
+
+    //change in x Kitaev  energy
+    double E_delta_kt_x=0;
+    for (const int& ind:this->flattened_ind_x_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+        E_delta_kt_x+=this->delta_energy_kitaev_x(sx_curr,sx_next,sx_neighbor);
+    }//end for ind
+
+
+    //change in y Kitaev  energy
+    double E_delta_kt_y=0;
+    for (const int& ind: this->flattened_ind_y_neighbors[flattened_ind])
+    {
+        this->get_spin_components(s_vec_curr,ind,sx_neighbor,sy_neighbor,sz_neighbor);
+
+        E_delta_kt_y+=this->delta_energy_kitaev_y(sy_curr,sy_next,sy_neighbor);
+
+    }//end for ind
+    return E_delta_Heisengerg_nn+E_delta_Heisenberg_diag+E_delta_bq_nn+E_delta_bq_diag+E_delta_kt_x+E_delta_kt_y;
+
+}
+
+///
+/// @param x proposed value
+/// @param y current value
+/// @param a left end of interval
+/// @param b right end of interval
+/// @param epsilon half length
+/// @return proposal probability S(x|y)
+double mc_computation::S_uni(const double& x, const double& y, const double& a, const double& b, const double& epsilon)
+{
+    if (a < y and y < a + epsilon)
+    {
+        return 1.0 / (y - a + epsilon);
+    }
+    else if (a + epsilon <= y and y < b - epsilon)
+    {
+        return 1.0 / (2.0 * epsilon);
+    }
+    else if (b - epsilon <= y and y < b)
+    {
+        return 1.0 / (b - y + epsilon);
+    }
+    else
+    {
+        std::cerr << "value out of range." << std::endl;
+        std::exit(10);
+    }
+}
+
+
+///
+/// @param theta_curr current theta value
+/// @param theta_next next theta value
+/// @param dE energy change
+/// @return acceptance ratio
+double mc_computation::acceptanceRatio_uni_theta(const double &theta_curr, const double &theta_next,const double& dE)
+{
+
+    double R = std::exp(-beta*dE);
+    double S_curr_next = S_uni(theta_curr,theta_next,theta_left_end,theta_right_end,h);
+
+    double S_next_curr=S_uni(theta_next,theta_curr,theta_left_end,theta_right_end,h);
+    double ratio = S_curr_next / S_next_curr;
+
+    if (std::fetestexcept(FE_DIVBYZERO))
+    {
+        std::cout << "Division by zero exception caught." << std::endl;
+        std::exit(15);
+    }
+    if (std::isnan(ratio))
+    {
+        std::cout << "The result is NaN." << std::endl;
+        std::exit(15);
+    }
+    R *= ratio;
+
+    return std::min(1.0, R);
+}
+
+///
+/// @param phi_curr current phi value
+/// @param phi_next next phi value
+/// @param dE energy change
+/// @return acceptance ratio
+double mc_computation::acceptanceRatio_uni_phi(const double &phi_curr, const double &phi_next,const double& dE)
+{
+
+
+    double R = std::exp(-beta*dE);
+    double S_curr_next = S_uni(phi_curr,phi_next,phi_left_end,phi_right_end,h);
+
+    double S_next_curr=S_uni(phi_next,phi_curr,phi_left_end,phi_right_end,h);
+    double ratio = S_curr_next / S_next_curr;
+
+    if (std::fetestexcept(FE_DIVBYZERO))
+    {
+        std::cout << "Division by zero exception caught." << std::endl;
+        std::exit(15);
+    }
+    if (std::isnan(ratio))
+    {
+        std::cout << "The result is NaN." << std::endl;
+        std::exit(15);
+    }
+    R *= ratio;
+
+    return std::min(1.0, R);
+
+}
+
+
+void  mc_computation::update_1_theta_1_site(double*s_vec_curr,double *angle_vec_curr,const int& flattened_ind)
+{
+double theta_curr=0,phi_curr=0, theta_next=0;
+
+    //get angle values
+    this->get_angle_components(angle_vec_curr,flattened_ind,theta_curr,phi_curr);
+    //propose next theta value
+    this->proposal_uni_theta(theta_curr,theta_next);
+
+    double dE=delta_energy_update_theta(s_vec_curr,angle_vec_curr,flattened_ind,theta_next);
+
+    double r=this->acceptanceRatio_uni_theta(theta_curr,theta_next,dE);
+
+    double u = distUnif01(e2);
+    if (u<=r)
+    {
+        //update angle
+        int theta_ind=2*flattened_ind;
+        angle_vec_curr[theta_ind]=theta_next;
+        double sx=0,sy=0,sz=0;
+        this->angles_to_spin(theta_next,phi_curr,sx,sy,sz);
+        //update spins
+        int s_ind=3*flattened_ind;
+        s_vec_curr[s_ind]=sx;
+        s_vec_curr[s_ind+1]=sy;
+        s_vec_curr[s_ind+2]=sz;
+
+
+    }//end of accept-reject
+
+}
+
+
+
+///
+/// @param s_vec_curr all current spins
+/// @param angle_vec_curr all current angles
+/// @param flattened_ind flattened index of the spin to update, this function updates phi
+void mc_computation::update_1_phi_1_site(double*s_vec_curr,double *angle_vec_curr,const int& flattened_ind)
+{
+
+    double theta_curr=0,phi_curr=0, phi_next=0;
+    this->get_angle_components(angle_vec_curr,flattened_ind,theta_curr,phi_curr);
+    //propose next phi value
+    this->proposal_uni_phi(phi_curr,phi_next);
+    double dE=delta_energy_update_phi(s_vec_curr,angle_vec_curr,flattened_ind,phi_next);
+
+    double r=this->acceptanceRatio_uni_phi(phi_curr,phi_next,dE);
+    double u = distUnif01(e2);
+    if (u<=r)
+    {
+        //update angle
+        int phi_ind=2*flattened_ind+1;
+        angle_vec_curr[phi_ind]=phi_next;
+        double sx=0,sy=0,sz=0;
+        this->angles_to_spin(theta_curr,phi_next,sx,sy,sz);
+        //update spins
+        int s_ind=3*flattened_ind;
+        s_vec_curr[s_ind]=sx;
+        s_vec_curr[s_ind+1]=sy;
+        s_vec_curr[s_ind+2]=sz;
+    }//end of accept-reject
+}

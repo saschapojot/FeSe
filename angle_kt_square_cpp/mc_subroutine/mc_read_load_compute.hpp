@@ -270,7 +270,130 @@ public:
 
     void init_and_run();
 
-    void delta_energy_update_theta(const int& flattened_ind, );
+    ///
+    /// @param s_vec_curr all current spins
+    /// @param angle_vec_curr all current angles
+    /// @param flattened_ind flattened index of the spin to update, this function updates phi
+    void update_1_phi_1_site(double*s_vec_curr,double *angle_vec_curr,const int& flattened_ind);
+
+    ///
+    /// @param s_vec_curr all current spins
+    /// @param angle_vec_curr all current angles
+    /// @param flattened_ind flattened index of the spin to update, this function updates theta
+    void update_1_theta_1_site(double*s_vec_curr,double *angle_vec_curr,const int& flattened_ind);
+
+    ///
+    /// @param phi_curr current phi value
+    /// @param phi_next next phi value
+    /// @param dE energy change
+    /// @return acceptance ratio
+    double acceptanceRatio_uni_phi(const double &phi_curr, const double &phi_next,const double& dE);
+
+    ///
+    /// @param theta_curr current theta value
+    /// @param theta_next next theta value
+    /// @param dE energy change
+    /// @return acceptance ratio
+    double acceptanceRatio_uni_theta(const double &theta_curr, const double &theta_next,const double& dE);
+
+
+    ///
+    /// @param x proposed value
+    /// @param y current value
+    /// @param a left end of interval
+    /// @param b right end of interval
+    /// @param epsilon half length
+    /// @return proposal probability S(x|y)
+    double S_uni(const double& x, const double& y, const double& a, const double& b, const double& epsilon);
+
+    ///
+    /// @param s_vec_curr  all current spin values
+    /// @param angle_vec_curr all current angle values
+    /// @param flattened_ind flattened index of the spin to update
+    /// @param phi_next proposed phi value
+    /// @return change in energy
+    double delta_energy_update_phi(const double*s_vec_curr, const double* angle_vec_curr,const int& flattened_ind,const double & phi_next);
+
+    ///
+    /// @param s_vec_curr all current spin values
+    /// @param angle_vec_curr all current angle values
+    /// @param flattened_ind flattened index of the spin to update
+    /// @param theta_next proposed theta value
+    /// @return change in energy
+    double delta_energy_update_theta(const double*s_vec_curr, const double* angle_vec_curr, const int& flattened_ind, const double & theta_next);
+
+    ///
+    /// @param sy_curr sy, current value
+    /// @param sy_next sy, next value
+    /// @param sy_neighbor sy, neighbor
+    /// @return change in Kitaev energy, y term
+    double delta_energy_kitaev_y(const double &sy_curr,const double &sy_next,const double &sy_neighbor);
+
+    ///
+    /// @param sx_curr sx, current value
+    /// @param sx_next sx, next value
+    /// @param sx_neighbor sx, neighbor
+    /// @return change in Kitaev energy, x term
+    double delta_energy_kitaev_x(const double & sx_curr,const double & sx_next,const double & sx_neighbor);
+
+    /// @param sx_curr sx, current value
+    /// @param sy_curr sy, current value
+    /// @param sz_curr sz, current value
+    /// @param sx_next sx, next value
+    /// @param sy_next sy, next value
+    /// @param sz_next sz, next value
+    /// @param sx_neighbor sx, neighbor
+    /// @param sy_neighbor sy, neighbor
+    /// @param sz_neighbor sz, neighbor
+    /// @return change in diagonal biquadratic energy
+    double delta_energy_biquadratic_diagonal(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                           const double & sx_next, const double &sy_next, const double & sz_next,
+                                           const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor);
+
+    /// @param sx_curr sx, current value
+    /// @param sy_curr sy, current value
+    /// @param sz_curr sz, current value
+    /// @param sx_next sx, next value
+    /// @param sy_next sy, next value
+    /// @param sz_next sz, next value
+    /// @param sx_neighbor sx, neighbor
+    /// @param sy_neighbor sy, neighbor
+    /// @param sz_neighbor sz, neighbor
+    /// @return change in nearest neighbor biquadratic energy
+    double delta_energy_biquadratic_nearest_neighbor(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                           const double & sx_next, const double &sy_next, const double & sz_next,
+                                           const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor);
+
+
+
+
+    /// @param sx_curr sx, current value
+    /// @param sy_curr sy, current value
+    /// @param sz_curr sz, current value
+    /// @param sx_next sx, next value
+    /// @param sy_next sy, next value
+    /// @param sz_next sz, next value
+    /// @param sx_neighbor sx, neighbor
+    /// @param sy_neighbor sy, neighbor
+    /// @param sz_neighbor sz, neighbor
+    /// @return change in diagonal Heisenberg energy
+    double delta_energy_Heisenberg_diagonal(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                           const double & sx_next, const double &sy_next, const double & sz_next,
+                                           const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor);
+    ///
+    /// @param sx_curr sx, current value
+    /// @param sy_curr sy, current value
+    /// @param sz_curr sz, current value
+    /// @param sx_next sx, next value
+    /// @param sy_next sy, next value
+    /// @param sz_next sz, next value
+    /// @param sx_neighbor sx, neighbor
+    /// @param sy_neighbor sy, neighbor
+    /// @param sz_neighbor sz, neighbor
+    /// @return change in nearest neighbor Heisenberg energy
+    double delta_energy_Heisenberg_nearest(const double & sx_curr, const double &sy_curr, const double& sz_curr,
+                                           const double & sx_next, const double &sy_next, const double & sz_next,
+                                           const double & sx_neighbor, const double &sy_neighbor, const double &sz_neighbor);
 
     ///
     /// @param phi_curr current value of phi, 1 spin
@@ -335,7 +458,19 @@ public:
     /// @return Heisenberg energy of flattened_ind_center and ind_neighbor, nearest neighbors
     double H_local_Heisenberg_nearest(const int& flattened_ind_center,const int& ind_neighbor,const double * s_vec);
 
-    /// @param s_vec containing 3 components of all spins
+    ///
+    /// @param angle_vec containing all angles
+    /// @param flattened_ind flattened index of a spin
+    /// @param theta parameter theta of the spin
+    /// @param phi parameter phi of the spin
+    inline void get_angle_components(const double* angle_vec, int flattened_ind, double &theta, double &phi)
+    {
+        const double * angle_ptr=angle_vec+(flattened_ind*2);
+        theta=angle_ptr[0];
+        phi=angle_ptr[1];
+
+    }
+    /// @param s_vec containing components of all spins
     /// @param flattened_ind flattened index of a spin
     /// @param s_x x component of this spin
     /// @param s_y y component of this spin
