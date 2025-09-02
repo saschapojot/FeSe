@@ -614,6 +614,9 @@ double mc_computation::H_local_Kitaev_y(const int& flattened_ind_center,const in
 double mc_computation::generate_uni_open_interval(const double& x, const double& leftEnd, const double& rightEnd,
                                                   const double& eps)
 {
+    thread_local std::random_device rd;
+    thread_local std::ranlux24_base e2_local(rd());
+
     double xMinusEps = x - eps;
     double xPlusEps = x + eps;
 
@@ -629,7 +632,7 @@ double mc_computation::generate_uni_open_interval(const double& x, const double&
     std::uniform_real_distribution<> distUnif(unif_left_end_double_on_the_right, unif_right_end);
     //(unif_left_end_double_on_the_right, unif_right_end)
 
-    double xNext = distUnif(e2);
+    double xNext = distUnif(e2_local);
     return xNext;
 }
 
@@ -805,7 +808,7 @@ double  mc_computation::delta_energy_biquadratic_nearest_neighbor(const double &
 
     double prod_curr=sx_curr*sx_neighbor+sy_curr*sy_neighbor+sz_curr*sz_neighbor;
 
-    double prod_next=sx_next*sx_neighbor+sy_next*sy_neighbor+sz_curr*sz_neighbor;
+    double prod_next=sx_next*sx_neighbor+sy_next*sy_neighbor+sz_next*sz_neighbor;
 
     double E_curr=this->J12*std::pow(prod_curr,2.0);
 
@@ -835,7 +838,7 @@ double mc_computation::delta_energy_biquadratic_diagonal(const double & sx_curr,
 {
     double prod_curr=sx_curr*sx_neighbor+sy_curr*sy_neighbor+sz_curr*sz_neighbor;
 
-    double prod_next=sx_next*sx_neighbor+sy_next*sy_neighbor+sz_curr*sz_neighbor;
+    double prod_next=sx_next*sx_neighbor+sy_next*sy_neighbor+sz_next*sz_neighbor;
 
     double E_curr=this->J22*std::pow(prod_curr,2.0);
 
@@ -1052,6 +1055,9 @@ double mc_computation::acceptanceRatio_uni_phi(const double &phi_curr, const dou
 void  mc_computation::update_1_theta_1_site(double*s_vec_curr,double *angle_vec_curr,const int& flattened_ind)
 {
 double theta_curr=0,phi_curr=0, theta_next=0;
+    thread_local std::random_device rd;
+    thread_local std::ranlux24_base e2_local(rd());
+    thread_local std::uniform_real_distribution<> distUnif01_local;
 
     //get angle values
     this->get_angle_components(angle_vec_curr,flattened_ind,theta_curr,phi_curr);
@@ -1062,7 +1068,7 @@ double theta_curr=0,phi_curr=0, theta_next=0;
 
     double r=this->acceptanceRatio_uni_theta(theta_curr,theta_next,dE);
 
-    double u = distUnif01(e2);
+    double u = distUnif01_local(e2_local);
     if (u<=r)
     {
         //update angle
@@ -1090,6 +1096,9 @@ double theta_curr=0,phi_curr=0, theta_next=0;
 void mc_computation::update_1_phi_1_site(double*s_vec_curr,double *angle_vec_curr,const int& flattened_ind)
 {
 
+    thread_local std::random_device rd;
+    thread_local std::ranlux24_base e2_local(rd());
+    thread_local std::uniform_real_distribution<> distUnif01_local;
     double theta_curr=0,phi_curr=0, phi_next=0;
     this->get_angle_components(angle_vec_curr,flattened_ind,theta_curr,phi_curr);
     //propose next phi value
@@ -1097,7 +1106,7 @@ void mc_computation::update_1_phi_1_site(double*s_vec_curr,double *angle_vec_cur
     double dE=delta_energy_update_phi(s_vec_curr,angle_vec_curr,flattened_ind,phi_next);
 
     double r=this->acceptanceRatio_uni_phi(phi_curr,phi_next,dE);
-    double u = distUnif01(e2);
+    double u =  distUnif01_local(e2_local);
     if (u<=r)
     {
         //update angle
@@ -1111,4 +1120,327 @@ void mc_computation::update_1_phi_1_site(double*s_vec_curr,double *angle_vec_cur
         s_vec_curr[s_ind+1]=sy;
         s_vec_curr[s_ind+2]=sz;
     }//end of accept-reject
+}
+
+
+
+double mc_computation::energy_tot(const double * s_vec)
+{
+    //Heisenberg energy, nearest neighbor
+    double E_Heisenberg_nn=0;
+    for (int center_ind=0;center_ind<lattice_num;center_ind++)
+    {
+        for (int neighbor_idx = 0; neighbor_idx < flattened_ind_nearest_neighbors[center_ind].size(); neighbor_idx++)
+        {
+            E_Heisenberg_nn += this->H_local_Heisenberg_nearest(center_ind, neighbor_idx, s_vec);
+        }//end for neighbor_idx
+    }//end for center_ind
+
+    //Heisenberg energy, diagonal
+    double E_Heisenberg_diag=0;
+    for (int center_ind=0;center_ind<lattice_num;center_ind++)
+    {
+        for (int neighbor_idx = 0; neighbor_idx < flattened_ind_diagonal_neighbors[center_ind].size(); neighbor_idx++)
+        {
+            E_Heisenberg_diag+=this->H_local_Heisenberg_diagonal(center_ind,neighbor_idx,s_vec);
+        }//end for neighbor_idx
+    }//end for center_ind
+
+    //biquadratic energy, nearest neighbor
+    double E_bq_nn=0;
+    for (int center_ind=0;center_ind<lattice_num;center_ind++)
+    {
+        for (int neighbor_idx = 0; neighbor_idx < flattened_ind_nearest_neighbors[center_ind].size(); neighbor_idx++)
+        {
+            E_bq_nn+=this->H_local_biquadratic_nearest_neighbor(center_ind,neighbor_idx,s_vec);
+        }//end for neighbor_idx
+    }//end for center_ind
+
+    //biquadratic energy, diagonal
+    double E_bq_diag=0;
+    for (int center_ind=0;center_ind<lattice_num;center_ind++)
+    {
+        for (int neighbor_idx = 0; neighbor_idx < flattened_ind_diagonal_neighbors[center_ind].size(); neighbor_idx++)
+        {
+            E_bq_diag+=this->H_local_biquadratic_diagonal(center_ind,neighbor_idx,s_vec);
+        }//end for neighbor_idx
+    }//end for center_ind
+
+    // Kitaev x energy
+    double E_kt_x=0;
+    for (int center_ind=0;center_ind<lattice_num;center_ind++)
+    {
+        for (int neighbor_idx = 0; neighbor_idx < flattened_ind_x_neighbors[center_ind].size(); neighbor_idx++)
+        {
+            E_kt_x+=this->H_local_Kitaev_x(center_ind,neighbor_idx,s_vec);
+        }//end for neighbor_idx
+    }//end for center_ind
+
+    // Kitaev y energy
+    double E_kt_y=0;
+    for (int center_ind=0;center_ind<lattice_num;center_ind++)
+    {
+        for (int neighbor_idx = 0; neighbor_idx < flattened_ind_y_neighbors[center_ind].size(); neighbor_idx++)
+        {
+            E_kt_y+=this->H_local_Kitaev_y(center_ind,neighbor_idx,s_vec);
+        }//end for neighbor_idx
+    }//end for center_ind
+
+    return 0.5*(E_Heisenberg_nn+E_Heisenberg_diag+E_bq_nn+E_bq_diag+E_kt_x+E_kt_y);
+}
+
+
+
+void mc_computation::update_spins_parallel_1_sweep(double& U_base_value, double *s_curr,double *s_angle_curr)
+{
+    std::vector<std::thread> threads;
+
+    ///////////////////////////////////////////////////////////////////////
+    // update A, theta
+    if (flattened_A_points.size() > 0) {
+        int actual_threads_A = std::min(this->num_parallel, static_cast<int>(flattened_A_points.size()));
+        int chunk_size = flattened_A_points.size() / actual_threads_A;
+
+        // Ensure minimum chunk size
+        if (chunk_size == 0) {
+            chunk_size = 1;
+            actual_threads_A = flattened_A_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_A; ++t) {
+            int start_idx = t * chunk_size;
+            int end_idx = (t == actual_threads_A - 1) ? flattened_A_points.size() : (t + 1) * chunk_size;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_A_points[i];
+                    this->update_1_theta_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update A sublattice, phi
+    if (flattened_A_points.size() > 0) {
+        int actual_threads_A = std::min(this->num_parallel, static_cast<int>(flattened_A_points.size()));
+        int chunk_size = flattened_A_points.size() / actual_threads_A;
+
+        // Ensure minimum chunk size
+        if (chunk_size == 0) {
+            chunk_size = 1;
+            actual_threads_A = flattened_A_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_A; ++t) {
+            int start_idx = t * chunk_size;
+            int end_idx = (t == actual_threads_A - 1) ? flattened_A_points.size() : (t + 1) * chunk_size;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_A_points[i];
+                    this->update_1_phi_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update B sublattice, theta
+    if (flattened_B_points.size() > 0) {
+        int actual_threads_B = std::min(this->num_parallel, static_cast<int>(flattened_B_points.size()));
+        int chunk_size_B = flattened_B_points.size() / actual_threads_B;
+
+        // Ensure minimum chunk size
+        if (chunk_size_B == 0) {
+            chunk_size_B = 1;
+            actual_threads_B = flattened_B_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_B; ++t) {
+            int start_idx = t * chunk_size_B;
+            int end_idx = (t == actual_threads_B - 1) ? flattened_B_points.size() : (t + 1) * chunk_size_B;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_B_points[i];
+                    this->update_1_theta_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update B sublattice, phi
+    if (flattened_B_points.size() > 0) {
+        int actual_threads_B = std::min(this->num_parallel, static_cast<int>(flattened_B_points.size()));
+        int chunk_size_B = flattened_B_points.size() / actual_threads_B;
+
+        // Ensure minimum chunk size
+        if (chunk_size_B == 0) {
+            chunk_size_B = 1;
+            actual_threads_B = flattened_B_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_B; ++t) {
+            int start_idx = t * chunk_size_B;
+            int end_idx = (t == actual_threads_B - 1) ? flattened_B_points.size() : (t + 1) * chunk_size_B;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_B_points[i];
+                    this->update_1_phi_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update C sublattice, theta
+    if (flattened_C_points.size() > 0) {
+        int actual_threads_C = std::min(this->num_parallel, static_cast<int>(flattened_C_points.size()));
+        int chunk_size_C = flattened_C_points.size() / actual_threads_C;
+
+        // Ensure minimum chunk size
+        if (chunk_size_C == 0) {
+            chunk_size_C = 1;
+            actual_threads_C = flattened_C_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_C; ++t) {
+            int start_idx = t * chunk_size_C;
+            int end_idx = (t == actual_threads_C - 1) ? flattened_C_points.size() : (t + 1) * chunk_size_C;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_C_points[i];
+                    this->update_1_theta_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update C sublattice, phi
+    if (flattened_C_points.size() > 0) {
+        int actual_threads_C = std::min(this->num_parallel, static_cast<int>(flattened_C_points.size()));
+        int chunk_size_C = flattened_C_points.size() / actual_threads_C;
+
+        // Ensure minimum chunk size
+        if (chunk_size_C == 0) {
+            chunk_size_C = 1;
+            actual_threads_C = flattened_C_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_C; ++t) {
+            int start_idx = t * chunk_size_C;
+            int end_idx = (t == actual_threads_C - 1) ? flattened_C_points.size() : (t + 1) * chunk_size_C;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_C_points[i];
+                    this->update_1_phi_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update D sublattice, theta
+    if (flattened_D_points.size() > 0) {
+        int actual_threads_D = std::min(this->num_parallel, static_cast<int>(flattened_D_points.size()));
+        int chunk_size_D = flattened_D_points.size() / actual_threads_D;
+
+        // Ensure minimum chunk size
+        if (chunk_size_D == 0) {
+            chunk_size_D = 1;
+            actual_threads_D = flattened_D_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_D; ++t) {
+            int start_idx = t * chunk_size_D;
+            int end_idx = (t == actual_threads_D - 1) ? flattened_D_points.size() : (t + 1) * chunk_size_D;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_D_points[i];
+                    this->update_1_theta_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        threads.clear();
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    ///////////////////////////////////////////////////////////////////////
+    // Update D sublattice, phi
+    if (flattened_D_points.size() > 0) {
+        int actual_threads_D = std::min(this->num_parallel, static_cast<int>(flattened_D_points.size()));
+        int chunk_size_D = flattened_D_points.size() / actual_threads_D;
+
+        // Ensure minimum chunk size
+        if (chunk_size_D == 0) {
+            chunk_size_D = 1;
+            actual_threads_D = flattened_D_points.size();
+        }
+
+        for (int t = 0; t < actual_threads_D; ++t) {
+            int start_idx = t * chunk_size_D;
+            int end_idx = (t == actual_threads_D - 1) ? flattened_D_points.size() : (t + 1) * chunk_size_D;
+
+            threads.emplace_back([this, start_idx, end_idx, s_curr, s_angle_curr]() {
+                for (int i = start_idx; i < end_idx; ++i) {
+                    int flattened_ind = this->flattened_D_points[i];
+                    this->update_1_phi_1_site(s_curr, s_angle_curr, flattened_ind);
+                }
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+    U_base_value = energy_tot(s_curr);
 }

@@ -27,7 +27,7 @@ constexpr double PI = M_PI;
 class mc_computation
 {
 public:
-    mc_computation(const std::string& cppInParamsFileName):e2(std::random_device{}()),distUnif01(0.0, 1.0)
+    mc_computation(const std::string& cppInParamsFileName)
     {
         std::ifstream file(cppInParamsFileName);
         if (!file.is_open())
@@ -270,6 +270,10 @@ public:
 
     void init_and_run();
 
+    void update_spins_parallel_1_sweep(double& U_base_value, double *s_curr,double *s_angle_curr);
+
+
+
     ///
     /// @param s_vec_curr all current spins
     /// @param angle_vec_curr all current angles
@@ -414,6 +418,8 @@ public:
     /// @return return a value within distance eps from x, on the open interval (leftEnd, rightEnd)
     double generate_uni_open_interval(const double& x, const double& leftEnd, const double& rightEnd,
                                       const double& eps);
+
+    double energy_tot(const double * s_vec);
 
     ///
     /// @param flattened_ind_center (flattened) index of spin to be updated
@@ -568,8 +574,8 @@ public:
     double phi_left_end;
     double phi_right_end;
 
-    std::ranlux24_base e2;
-    std::uniform_real_distribution<> distUnif01;
+    // std::ranlux24_base e2;
+    // std::uniform_real_distribution<> distUnif01;
 
     //data in 1 flush
     double * U_data_all_ptr; //all U data
