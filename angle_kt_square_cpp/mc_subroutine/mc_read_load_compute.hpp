@@ -255,6 +255,9 @@ public:
         this->phi_left_end=0;
         this->phi_right_end=1.1*PI;
         this->h=0.1;//step size
+        std::cout<<"theta_left_end="<<theta_left_end<<", theta_right_end="<<theta_right_end<<std::endl;
+        std::cout<<"phi_left_end="<<phi_left_end<<", phi_right_end="<<phi_right_end<<std::endl;
+        std::cout<<"h="<<h<<std::endl;
     }//end constructor
 
     // Destructor
@@ -270,7 +273,27 @@ public:
 
     void init_and_run();
 
-    void update_spins_parallel_1_sweep(double& U_base_value, double *s_curr,double *s_angle_curr);
+    ///
+    /// @param s_vec_init all spin components in 1 configuration
+    /// @param s_angle_vec_init angles corresponding to s_curr
+    /// @param flushNum number of flushes
+    void execute_mc(double * s_vec_init, double * s_angle_vec_init,const int& flushNum);
+
+    ///
+    ///compute M in parallel for all configurations
+    void compute_all_magnetizations_parallel();
+    ///
+    /// @param Mx average value of M, x direction
+    /// @param My average value of M, y direction
+    /// @param Mz average value of M, z direction
+    /// @param startInd tarting index of 1 configuration
+    /// @param length 3*N0*N1
+    void compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length);
+
+    ///
+    /// @param s_curr all spin components in 1 configuration
+    /// @param s_angle_curr angles corresponding to s_curr
+    void update_spins_parallel_1_sweep(double *s_curr,double *s_angle_curr);
 
 
 
@@ -567,7 +590,7 @@ public:
     int lattice_num;//N0*N1
     int total_components_num;//3*N0*N1
     int tot_angle_components_num;//2*N0*N1
-    int h;//step size
+    double h;//step size
 
     double theta_left_end;
     double theta_right_end;

@@ -160,11 +160,11 @@ void mc_computation::init_s()
     else
     {
         name = "flushEnd" + std::to_string(this->flushLastFile);
-        s_angle_inFileName = this->out_s_angle_path + "/" + name + ".s_angle.pkl";
+        s_angle_inFileName = this->out_s_angle_path + "/" + name + ".s_angle_final.pkl";
         //load angle
-        this->load_pickle_data(s_angle_inFileName,s_angle_all_ptr,sweepToWrite*tot_angle_components_num);
-        //copy  last tot_angle_components_num elements to s_angle_init
-        std::memcpy(s_angle_init,s_angle_all_ptr+tot_angle_components_num * (sweepToWrite - 1),tot_angle_components_num*sizeof(double));
+        this->load_pickle_data(s_angle_inFileName,s_angle_init,tot_angle_components_num);
+        // //copy  last tot_angle_components_num elements to s_angle_init
+        // std::memcpy(s_angle_init,s_angle_all_ptr+tot_angle_components_num * (sweepToWrite - 1),tot_angle_components_num*sizeof(double));
 
 
     }//end else
@@ -255,6 +255,7 @@ void mc_computation::init_and_run()
     // std::cout<<"D: "<<std::endl;
     // print_vector(flattened_D_points);
     this->init_flattened_ind_neighbors();
+    this->execute_mc(s_init,s_angle_init,newFlushNum);
 
     // for (int j=0;j<flattened_ind_nearest_neighbors.size();j++)
     // {
@@ -1000,11 +1001,12 @@ double mc_computation::acceptanceRatio_uni_theta(const double &theta_curr, const
 {
 
     double R = std::exp(-beta*dE);
+    // std::cout<<"theta_curr="<<theta_curr<<", theta_next="<<theta_next<<std::endl;
     double S_curr_next = S_uni(theta_curr,theta_next,theta_left_end,theta_right_end,h);
-
+    // std::cout<<"S_curr_next="<<S_curr_next<<std::endl;
     double S_next_curr=S_uni(theta_next,theta_curr,theta_left_end,theta_right_end,h);
     double ratio = S_curr_next / S_next_curr;
-
+    // std::cout<<"S_next_curr="<<S_next_curr<<std::endl;
     if (std::fetestexcept(FE_DIVBYZERO))
     {
         std::cout << "Division by zero exception caught." << std::endl;
@@ -1190,8 +1192,10 @@ double mc_computation::energy_tot(const double * s_vec)
 }
 
 
-
-void mc_computation::update_spins_parallel_1_sweep(double& U_base_value, double *s_curr,double *s_angle_curr)
+///
+/// @param s_curr all spin components in 1 configuration
+/// @param s_angle_curr angles corresponding to s_curr
+void mc_computation::update_spins_parallel_1_sweep( double *s_curr,double *s_angle_curr)
 {
     std::vector<std::thread> threads;
 
@@ -1442,5 +1446,119 @@ void mc_computation::update_spins_parallel_1_sweep(double& U_base_value, double 
     }
     ///////////////////////////////////////////////////////////////////////
 
-    U_base_value = energy_tot(s_curr);
+    // U_base_value = energy_tot(s_curr);
+}
+
+
+void mc_computation::execute_mc(double * s_vec_init, double * s_angle_vec_init,const int& flushNum)
+{
+    int flushThisFileStart=this->flushLastFile+1;
+    for (int fls = 0; fls < flushNum; fls++)
+    {
+        const auto tMCStart{std::chrono::steady_clock::now()};
+        for (int swp = 0; swp < sweepToWrite*sweep_multiple; swp++)
+        {
+            this->update_spins_parallel_1_sweep(s_vec_init,s_angle_vec_init);
+            if(swp%sweep_multiple==0)
+            {
+                int swp_out=swp/sweep_multiple;
+                double energy_tot=this->energy_tot(s_vec_init);
+                this->U_data_all_ptr[swp_out]=energy_tot;
+                std::memcpy(s_all_ptr+swp_out*total_components_num,s_vec_init,total_components_num*sizeof(double));
+                std::memcpy(s_angle_all_ptr+swp_out*tot_angle_components_num,s_angle_vec_init,tot_angle_components_num*sizeof(double));
+
+
+            }//end save to array
+        }//end sweep for
+        int flushEnd=flushThisFileStart+fls;
+        std::string fileNameMiddle =  "flushEnd" + std::to_string(flushEnd);
+
+        //save U
+        std::string out_U_PickleFileName = out_U_path+"/" + fileNameMiddle + ".U.pkl";
+        this->save_array_to_pickle(U_data_all_ptr,sweepToWrite,out_U_PickleFileName);
+
+        //compute M
+        this->compute_all_magnetizations_parallel();
+        std::string out_M_PickleFileName=this->out_M_path+"/" + fileNameMiddle + ".M.pkl";
+        //save M
+        this->save_array_to_pickle(M_all_ptr,3*sweepToWrite,out_M_PickleFileName);
+
+
+        std::string out_s_angle_final_PickleFileName = this->out_s_angle_path + "/" + fileNameMiddle + ".s_angle_final.pkl";
+        this->save_array_to_pickle(s_angle_vec_init, tot_angle_components_num, out_s_angle_final_PickleFileName);
+        const auto tMCEnd{std::chrono::steady_clock::now()};
+        const std::chrono::duration<double> elapsed_secondsAll{tMCEnd - tMCStart};
+        std::cout << "flush " + std::to_string(flushEnd)  + ": "
+                  << elapsed_secondsAll.count() / 3600.0 << " h" << std::endl;
+    }//end flush for loop
+
+}
+
+
+
+void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length)
+{
+double sum_x=0, sum_y=0,sum_z=0;
+    for (int j=startInd;j<startInd+length;j+=3)
+    {
+        sum_x+=this->s_all_ptr[j];
+    }//end for j
+
+    Mx=sum_x/static_cast<double>(lattice_num);
+
+    for (int j=startInd+1;j<startInd+length;j+=3)
+    {
+        sum_y+=this->s_all_ptr[j];
+    }
+    My=sum_y/static_cast<double>(lattice_num);
+
+    for (int j=startInd+2;j<startInd+length;j+=3)
+    {
+        sum_z+=this->s_all_ptr[j];
+    }
+    Mz=sum_z/static_cast<double>(lattice_num);
+}
+
+
+
+///
+///compute M in parallel for all configurations
+void mc_computation::compute_all_magnetizations_parallel()
+{
+    int num_threads = num_parallel;
+    int config_size=total_components_num;
+    int  num_configs=sweepToWrite;
+    std::vector<std::thread> threads;
+
+    // Calculate how many configurations each thread will process
+    int configs_per_thread = num_configs / num_threads;
+    int remainder = num_configs % num_threads;
+
+    // Launch threads
+    for (int t = 0; t < num_threads; ++t) {
+        int start_config = t * configs_per_thread;
+        int end_config = (t == num_threads - 1) ? start_config + configs_per_thread + remainder
+                                                : start_config + configs_per_thread;
+
+        threads.emplace_back([this, start_config, end_config, config_size]() {
+            for (int config_idx = start_config; config_idx < end_config; ++config_idx) {
+                double Mx, My, Mz;
+                int startInd = config_idx * config_size;
+
+                // Calculate magnetization for this configuration
+                this->compute_M_avg_over_sites(Mx, My, Mz, startInd, config_size);
+
+                // Store results in M_all_ptr
+                int M_idx = config_idx * 3;
+                this->M_all_ptr[M_idx] = Mx;
+                this->M_all_ptr[M_idx + 1] = My;
+                this->M_all_ptr[M_idx + 2] = Mz;
+            }
+        });
+    }
+
+    // Wait for all threads to complete
+    for (auto& thread : threads) {
+        thread.join();
+    }
 }
