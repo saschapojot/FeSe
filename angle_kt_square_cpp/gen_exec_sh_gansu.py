@@ -41,7 +41,7 @@ def contents_to_bash(chk_ind,T_ind,chunks):
         f"#SBATCH -o out_exec_T{TStr}.out\n",
         f"#SBATCH -e out_exec_T{TStr}.err\n",
         "cd /public/home/hkust_jwliu_1/liuxi/Documents/cppCode/FeSe/angle_kt_square_cpp\n",
-        f"python3 -u launch_one_run_dipole.py ./dataAll/N{N}/row{which_row}/T{TStr}/run_T{TStr}.mc.conf\n",
+        f"python3 -u launch_one_run.py ./dataAll/N{N}/row{which_row}/T{TStr}/run_T{TStr}.mc.conf\n",
         f"numactl --interleave=all  ./run_mc ./dataAll/N{N}/row{which_row}/T{TStr}/cppIn.txt\n"
     ]
 

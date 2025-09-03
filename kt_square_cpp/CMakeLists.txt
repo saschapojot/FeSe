@@ -22,6 +22,7 @@ find_package(Boost REQUIRED COMPONENTS python numpy filesystem)
 add_executable(run_mc
         run_mc.cpp
         mc_subroutine/mc_read_load_compute.cpp
+        mc_subroutine/mc_read_load_compute.hpp
 )
 
 target_compile_options(run_mc PRIVATE

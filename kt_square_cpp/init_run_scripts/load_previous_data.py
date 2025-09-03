@@ -58,12 +58,26 @@ def format_using_decimal(value, precision=4):
     formatted_value = decimal_value.quantize(Decimal(1)) if decimal_value == decimal_value.to_integral() else decimal_value.normalize()
     return str(formatted_value)
 
+def generate_1_spin(theta,phi):
+    val0=np.cos(theta)*np.sin(phi)
+    val1=np.sin(theta)*np.sin(phi)
+    val2=np.cos(phi)
+    return val0,val1,val2
 def create_init_s(U_s_dataDir):
     #s
     outPath_s=U_s_dataDir+"/s/"
     Path(outPath_s).mkdir(exist_ok=True,parents=True)
     outFileName_s=outPath_s+"/s_init.pkl"
-    s_init_mat=np.array( [random.choice([1, -1]) for _ in range(N*N)])
+    s_init_mat=[]
+    for n0 in range(0,N):
+        for n1 in range(0,N):
+            theta=random.uniform(0,2*np.pi)
+            phi=random.uniform(0,np.pi)
+            val0,val1,val2=generate_1_spin(theta,phi)
+            s_init_mat.append(val0)
+            s_init_mat.append(val1)
+            s_init_mat.append(val2)
+    s_init_mat=np.array(s_init_mat)
     with open(outFileName_s,"wb") as fptr:
         pickle.dump(s_init_mat,fptr)
 

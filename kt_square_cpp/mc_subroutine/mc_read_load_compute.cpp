@@ -246,7 +246,7 @@ void mc_computation::init_and_run()
     //     std::cout<<"x neighbors of "<<j<<": \n";
     //     print_vector(flattened_ind_x_neighbors[j]);
     // }
-    //
+
     // for (int j=0;j<flattened_ind_y_neighbors.size();j++)
     // {
     //     std::cout<<"y neighbors of "<<j<<": \n";
@@ -573,5 +573,17 @@ double mc_computation::H_local_Kitaev_y(const int& flattened_ind_center,const in
     double prod=center_s_y*neighbor_s_y;
 
     return this->K*prod;
+
+}
+
+
+
+///
+/// @param flattened_ind flattened [n0, n1], for A, B, C, D
+/// @return energy changed if spin [n0,n1] is flipped
+double mc_computation::delta_energy(const int &flattened_ind)
+{
+
+    // nearest neighbor, Heisenberg
 
 }

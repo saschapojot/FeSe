@@ -17,6 +17,9 @@
 #include <thread>
 #include <vector>
 
+
+
+
 namespace fs = boost::filesystem;
 namespace py = boost::python;
 namespace np = boost::python::numpy;
@@ -252,6 +255,11 @@ public:
 
 public:
     void init_and_run();
+
+    ///
+    /// @param flattened_ind flattened [n0, n1], for A, B, C, D
+    /// @return energy changed if spin [n0,n1] is flipped
+    double delta_energy(const int &flattened_ind);
 
     ///
     /// @param flattened_ind_center (flattened) index of spin to be updated
