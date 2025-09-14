@@ -2,55 +2,32 @@ cmake_minimum_required(VERSION 3.28)
 project(angle_kt_square_cpp)
 
 set(CMAKE_CXX_STANDARD 17)
+set(OPTIMIZATION_FLAGS -O3)
 message(STATUS "Using C++ compiler: ${CMAKE_CXX_COMPILER}")
-# Option to enable profiling
-#option(ENABLE_PROFILING "Enable gprof profiling" OFF)
-# Find Python
-find_package(Python3 REQUIRED COMPONENTS Development)
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+add_executable(run_mc run_mc.cpp mc_subroutine/mc_read_load_compute.cpp mc_subroutine/mc_read_load_compute.hpp)
+target_compile_options(run_mc PRIVATE ${OPTIMIZATION_FLAGS})
 
+set(Python3_INCLUDE_DIRS "/home/adada/anaconda3/include/python3.13")
+set(Python3_LIBRARIES "/home/adada/anaconda3/lib/libpython3.13.so")
+include_directories(${Python3_INCLUDE_DIRS})
 
+set(Boost_NO_SYSTEM_PATHS YES)
+if (Boost_NO_SYSTEM_PATHS)
+    set(Boost_ROOT "/home/adada/cppLocal/boostBuild")
+    set(Boost_INCLUDE_DIR "/home/adada/cppLocal/boostBuildd/include")
+    set(Boost_LIBRARY_DIR "/home/adada/cppLocal/boostBuild/lib")
+endif (Boost_NO_SYSTEM_PATHS)
 
-# Find Boost
-set(Boost_NO_SYSTEM_PATHS ON)
-set(BOOST_ROOT "$ENV{HOME}/cppLocal/boostBuild")
 find_package(Boost REQUIRED COMPONENTS python numpy filesystem)
+if(Boost_FOUND)
+    message(STATUS "boost root is: ${Boost_ROOT}")
+    message(STATUS "boost include path is : ${Boost_INCLUDE_DIR}")
+    message(STATUS "boost library path is : ${Boost_LIBRARY_DIR}")
+    message(STATUS "boost libraries is : ${Boost_LIBRARIES}")
+    include_directories(${Boost_INCLUDE_DIR})
+    link_directories(${Boost_LIBRARY_DIR})
+else()
+    message(WARNING "boost not found.")
+endif()
 
-add_executable(run_mc
-        run_mc.cpp
-        mc_subroutine/mc_read_load_compute.cpp
-        mc_subroutine/mc_read_load_compute.hpp
-)
-
-target_compile_options(run_mc PRIVATE
-        $<$<CONFIG:Release>:-O3>
-        $<$<CONFIG:Release>:-march=native>
-        $<$<CONFIG:Release>:-ftree-vectorize>
-)
-
-# Set specific optimization for critical files
-
-
-# Include directories
-target_include_directories(run_mc PRIVATE
-
-        ${Python3_INCLUDE_DIRS}
-)
-# Link options
-#if(ENABLE_PROFILING)
-#    target_link_options(run_mc PRIVATE -pg)
-#    message(STATUS "Profiling enabled with gprof")
-#endif()
-
-# Link libraries
-target_link_libraries(run_mc PRIVATE
-        pthread
-        m
-        Boost::filesystem
-        Boost::python
-        Boost::numpy
-        Python3::Python
-)
+target_link_libraries(run_mc Boost::filesystem Boost::python Boost::numpy ${Python3_LIBRARIES} pthread)
