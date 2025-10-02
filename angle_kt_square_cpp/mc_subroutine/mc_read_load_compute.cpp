@@ -1849,9 +1849,9 @@ void mc_computation::execute_mc(double * s_vec_init, double * s_angle_vec_init,c
         std::string out_U_PickleFileName = out_U_path+"/" + fileNameMiddle + ".U.pkl";
         this->save_array_to_pickle(U_data_all_ptr,sweepToWrite,out_U_PickleFileName);
 
-        // Compute magnetization for all saved configurations
+        // Compute order parameter for all saved configurations
         this->compute_all_magnetizations_parallel();
-        // Save magnetization data
+        // Save order parameter data
         std::string out_M_PickleFileName=this->out_M_path+"/" + fileNameMiddle + ".M.pkl";
         //save M
         this->save_array_to_pickle(M_all_ptr,3*sweepToWrite,out_M_PickleFileName);
@@ -1871,51 +1871,66 @@ void mc_computation::execute_mc(double * s_vec_init, double * s_angle_vec_init,c
 }
 
 
-/**
- * @brief Compute average magnetization for one configuration
- * @param Mx Output: x-component of magnetization
- * @param My Output: y-component of magnetization
- * @param Mz Output: z-component of magnetization
- * @param startInd Starting index in s_all_ptr
- * @param length Number of spin components (3*N0*N1)
- *
- * Computes: M_α = (1/N) * Σ_i s_α^i  for α = x, y, z
- */
-void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length)
+// /**
+//  * @brief Compute average magnetization for one configuration
+//  * @param Mx Output: x-component of magnetization
+//  * @param My Output: y-component of magnetization
+//  * @param Mz Output: z-component of magnetization
+//  * @param startInd Starting index in s_all_ptr
+//  * @param length Number of spin components (3*N0*N1)
+//  *
+//  * Computes: M_α = (1/N) * Σ_i s_α^i  for α = x, y, z
+//  */
+// void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length)
+// {
+// double sum_x=0, sum_y=0,sum_z=0;
+//
+//     // Sum x-components (at indices 0, 3, 6, ...)
+//     for (int j=startInd;j<startInd+length;j+=3)
+//     {
+//         sum_x+=this->s_all_ptr[j];
+//     }//end for j
+//
+//     Mx=sum_x/static_cast<double>(lattice_num);
+//
+//     // Sum y-components (at indices 1, 4, 7, ...)
+//     for (int j=startInd+1;j<startInd+length;j+=3)
+//     {
+//         sum_y+=this->s_all_ptr[j];
+//     }
+//     My=sum_y/static_cast<double>(lattice_num);
+//
+//     // Sum z-components (at indices 2, 5, 8, ...)
+//     for (int j=startInd+2;j<startInd+length;j+=3)
+//     {
+//         sum_z+=this->s_all_ptr[j];
+//     }
+//     Mz=sum_z/static_cast<double>(lattice_num);
+// }
+
+//order parameter , by qyc
+void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz, const int &startInd, const int &length)
 {
-double sum_x=0, sum_y=0,sum_z=0;
+    double sum_x = 0, sum_y = 0, sum_z = 0;
 
-    // Sum x-components (at indices 0, 3, 6, ...)
-    for (int j=startInd;j<startInd+length;j+=3)
+    for (int j = startInd; j < startInd + length; j += 3)
     {
-        sum_x+=this->s_all_ptr[j];
-    }//end for j
+        int spin_index = (j - startInd) / 3;
+        int n0 = spin_index / N1;
+        int n1 = spin_index % N1;
 
-    Mx=sum_x/static_cast<double>(lattice_num);
+        short int phase = (2 * (n0 % 2) - 1);
 
-    // Sum y-components (at indices 1, 4, 7, ...)
-    for (int j=startInd+1;j<startInd+length;j+=3)
-    {
-        sum_y+=this->s_all_ptr[j];
+        sum_x += (this->s_all_ptr[j]) * phase;
+        sum_y += (this->s_all_ptr[j + 1]) * phase;
     }
-    My=sum_y/static_cast<double>(lattice_num);
 
-    // Sum z-components (at indices 2, 5, 8, ...)
-    for (int j=startInd+2;j<startInd+length;j+=3)
-    {
-        sum_z+=this->s_all_ptr[j];
-    }
-    Mz=sum_z/static_cast<double>(lattice_num);
+    Mx = sum_x / static_cast<double>(lattice_num);
+    My = sum_y / static_cast<double>(lattice_num);
+    Mz = 0;
 }
 
-
-
-/**
- * @brief Compute magnetizations for all saved configurations in parallel
- *
- * Divides configurations among threads for parallel processing
- * Each thread computes magnetization for a subset of configurations
- */
+//order parameter parallel
 void mc_computation::compute_all_magnetizations_parallel()
 {
     int num_threads = num_parallel;
