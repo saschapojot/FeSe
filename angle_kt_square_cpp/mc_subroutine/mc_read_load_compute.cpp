@@ -5,45 +5,64 @@
 #include "mc_read_load_compute.hpp"
 
 
+/**
+ * @brief Load data from pickle file into C++ array
+ * @param filename Path to pickle file
+ * @param data_ptr Pointer to array where data will be stored
+ * @param size Expected size of data
+ *
+ * Process:
+ * 1. Initialize Python interpreter and NumPy
+ * 2. Open pickle file using Python's io module
+ * 3. Load pickled NumPy array
+ * 4. Convert to Python list
+ * 5. Copy data to C++ array
+ */
 void mc_computation::load_pickle_data(const std::string& filename, double* data_ptr,
                                       std::size_t size)
 {
-    // Initialize Python and NumPy
+    // Initialize Python interpreter (required for Boost.Python)
     Py_Initialize();
+
+    // Initialize NumPy C API
     np::initialize();
 
 
     try
     {
-        // Use Python's 'io' module to open the file directly in binary mode
+        // Import Python's 'io' module for file operations
         py::object io_module = py::import("io");
-        py::object file = io_module.attr("open")(filename, "rb"); // Open file in binary mode
+        // Open file in binary read mode
+        py::object file = io_module.attr("open")(filename, "rb");
 
-        // Import the 'pickle' module
+        // Import pickle module for deserialization
         py::object pickle_module = py::import("pickle");
 
-        // Use pickle.load to deserialize from the Python file object
+        // Deserialize the pickle file to Python object
         py::object loaded_data = pickle_module.attr("load")(file);
 
         // Close the file
         file.attr("close")();
 
-        // Check if the loaded object is a NumPy array
+        // Check if loaded object is a NumPy array
         if (py::extract<np::ndarray>(loaded_data).check())
         {
+            // Extract as NumPy array
             np::ndarray np_array = py::extract<np::ndarray>(loaded_data);
 
-            // Convert the NumPy array to a Python list using tolist()
+            // Convert NumPy array to Python list for easier element access
             py::object py_list = np_array.attr("tolist")();
 
-            // Ensure the list size matches the expected size
+            // Get size of loaded data
             ssize_t list_size = py::len(py_list);
+
+            // Verify size matches expected size
             if (static_cast<std::size_t>(list_size) > size)
             {
                 throw std::runtime_error("The provided shared_ptr array size is smaller than the list size.");
             }
 
-            // Copy the data from the Python list to the shared_ptr array
+            // Copy data from Python list to C++ array
             for (ssize_t i = 0; i < list_size; ++i)
             {
                 data_ptr[i] = py::extract<double>(py_list[i]);
@@ -56,13 +75,25 @@ void mc_computation::load_pickle_data(const std::string& filename, double* data_
     }
     catch (py::error_already_set&)
     {
+        // Print Python error traceback
         PyErr_Print();
         throw std::runtime_error("Python error occurred.");
     }
 }
 
 
-
+/**
+ * @brief Save C++ array to pickle file for Python compatibility
+ * @param ptr Pointer to data array
+ * @param size Number of elements in array
+ * @param filename Output file path
+ *
+ * Process:
+ * 1. Initialize Python/NumPy if needed
+ * 2. Convert C++ array to NumPy array
+ * 3. Serialize using pickle.dumps
+ * 4. Write binary data to file
+ */
 void mc_computation::save_array_to_pickle(const double* ptr, int size, const std::string& filename)
 {
     using namespace boost::python;
@@ -85,10 +116,11 @@ void mc_computation::save_array_to_pickle(const double* ptr, int size, const std
         object pickle = import("pickle");
         object pickle_dumps = pickle.attr("dumps");
 
-        // Convert C++ array to NumPy array using shared_ptr
+        // Convert C++ array to NumPy array
+        // np::from_data creates a NumPy array that views the C++ data
         np::ndarray numpy_array = np::from_data(
-            ptr, // Use shared_ptr's raw pointer
-            np::dtype::get_builtin<double>(), // NumPy data type (double)
+            ptr, // Pointer to data
+            np::dtype::get_builtin<double>(), // Data type (double)
             boost::python::make_tuple(size), // Shape of the array (1D array)
             boost::python::make_tuple(sizeof(double)), // Strides
             object() // Optional base object
@@ -123,23 +155,44 @@ void mc_computation::save_array_to_pickle(const double* ptr, int size, const std
 }
 
 
-
+/**
+ * @brief Apply periodic boundary conditions in direction 0
+ * @param m0 Index (can be negative or >= N0)
+ * @return Index wrapped to [0, N0)
+ *
+ * Uses modulo arithmetic: ((m0 % N0) + N0) % N0
+ * This handles negative indices correctly
+ */
 int mc_computation::mod_direction0(const int& m0)
 {
     return ((m0 % N0) + N0) % N0;
 }
 
+
+/**
+ * @brief Apply periodic boundary conditions in direction 1
+ * @param m1 Index (can be negative or >= N1)
+ * @return Index wrapped to [0, N1)
+ */
 int mc_computation::mod_direction1(const int& m1)
 {
     return ((m1 % N1) + N1) % N1;
 }
 
 ///
-/// @param theta angle
-/// @param phi angle
-/// @param sx sx component of spin
-/// @param sy sy component of spin
-/// @param sz sz component of spin
+/**
+ * @brief Convert spherical angles to Cartesian spin components
+ * @param theta Azimuthal angle
+ * @param phi Polar angle
+ * @param sx Output: x-component
+ * @param sy Output: y-component
+ * @param sz Output: z-component
+ *
+ * Standard spherical to Cartesian conversion:
+ * sx = cos(θ) * sin(φ)
+ * sy = sin(θ) * sin(φ)
+ * sz = cos(φ)
+ */
 void mc_computation::angles_to_spin(const double &theta, const double &phi, double &sx, double &sy, double &sz)
 {
     sx=std::cos(theta)*std::sin(phi);
@@ -147,65 +200,100 @@ void mc_computation::angles_to_spin(const double &theta, const double &phi, doub
     sz=std::cos(phi);
 }
 
+
+/**
+ * @brief Initialize spin configuration from file or previous run
+ *
+ * If flushLastFile == -1:
+ *   Load initial configuration from "s_angle_init.pkl"
+ * Else:
+ *   Load final configuration from previous flush
+ *
+ * Then convert all angles to spin components
+ */
 void mc_computation::init_s()
 {
     std::string name;
     std::string s_angle_inFileName;
+
+    // Determine which file to load based on whether this is a new or continued simulation
     if (this->flushLastFile == -1)
     {
+        // New simulation - load initial configuration
         name = "init";
         s_angle_inFileName=this->out_s_angle_path+"/s_angle_"+name+".pkl";
         this->load_pickle_data(s_angle_inFileName,s_angle_init,tot_angle_components_num);
     } //end flushLastFile==-1
     else
     {
+        // Continue from previous simulation - load last saved configuration
         name = "flushEnd" + std::to_string(this->flushLastFile);
         s_angle_inFileName = this->out_s_angle_path + "/" + name + ".s_angle_final.pkl";
-        //load angle
+        // Load angle data
         this->load_pickle_data(s_angle_inFileName,s_angle_init,tot_angle_components_num);
-        // //copy  last tot_angle_components_num elements to s_angle_init
-        // std::memcpy(s_angle_init,s_angle_all_ptr+tot_angle_components_num * (sweepToWrite - 1),tot_angle_components_num*sizeof(double));
 
 
     }//end else
 
+    // Convert angles to spin components for all lattice sites
     for (int j=0;j<lattice_num;j++)
     {
-        // convert angles to spin
+        // Get angles for this site (2 values per site: theta and phi)
         double theta_tmp=s_angle_init[2*j];
         double phi_tmp=s_angle_init[2*j+1];
+
+        // Convert to spin components
         double sx_tmp,sy_tmp,sz_tmp;
         this->angles_to_spin(theta_tmp,phi_tmp,sx_tmp,sy_tmp,sz_tmp);
+
+        // Store spin components (3 values per site: sx, sy, sz)
         s_init[3*j]=sx_tmp;
         s_init[3*j+1]=sy_tmp;
         s_init[3*j+2]=sz_tmp;
     }//end for
 }
-///
-/// @param n0
-/// @param n1
-/// @return flatenned index
+
+/**
+ * @brief Convert 2D lattice coordinates to 1D flattened index
+ * @param n0 Index in direction 0 (row)
+ * @param n1 Index in direction 1 (column)
+ * @return Flattened index = n0 * N1 + n1
+ *
+ * This is standard row-major ordering for 2D arrays
+ */
 int mc_computation::double_ind_to_flat_ind(const int& n0, const int& n1)
 {
     return n0 * N1 + n1;
 }
 
-//initialize A, B, C, D sublattices for checkerboard update
+/**
+ * @brief Initialize A, B, C, D sublattices for checkerboard updates
+ *
+ * Divides N0×N1 lattice into 4 sublattices based on parity of indices:
+ * - A sublattice: i even, j even
+ * - B sublattice: i even, j odd
+ * - C sublattice: i odd, j even
+ * - D sublattice: i odd, j odd
+ *
+ * Each sublattice contains N0*N1/4 sites
+ * No two sites in the same sublattice are nearest neighbors
+ */
 void mc_computation::init_A_B_C_D_sublattices()
 {
     int sublat_num = static_cast<int>(N0*N1/4);
 
-    // Reserve space for all sublattices
+    // Reserve space for efficiency (avoid repeated reallocations)
     this->A_sublattice.reserve(sublat_num);
     this->B_sublattice.reserve(sublat_num);
     this->C_sublattice.reserve(sublat_num);
     this->D_sublattice.reserve(sublat_num);
 
-    // Initialize all sublattices in a single pass
+    // Iterate through all lattice sites
     for (int i = 0; i < N0; i++)
     {
         for (int j = 0; j < N1; j++)
         {
+            // Assign to sublattice based on parity of both indices
             if (i%2 == 0 && j%2 == 0)
             {
                 A_sublattice.push_back({i,j});
