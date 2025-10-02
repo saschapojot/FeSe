@@ -19,9 +19,9 @@ def format_using_decimal(value, precision=4):
 N=6#unit cell number,#must be even
 N0=N
 N1=N
-which_row=0#use which_row in param.csv
+which_row=1#use which_row in param.csv
 
-TVals=[0.1,0.5,1,1.5,2]
+TVals= np.arange(0.5,2.1,0.1).round(4).tolist()
 default_flush_num=200
 
 num_parallel=24
@@ -50,7 +50,7 @@ for k in range(0,len(TVals)):
     TStr=format_using_decimal(T)
     TStrAll.append(TStr)
 
-def contents_to_conf(k):
+def contents_to_conf(k,NStr):
     contents=[
         "#This is the configuration file for 2d Square Kitaev mc computations\n",
         "\n" ,
@@ -92,4 +92,6 @@ def contents_to_conf(k):
 
 
 for k in range(0,len(TVals)):
-        contents_to_conf(k)
+    for n in [4,8,16,32,64]:
+        contents_to_conf(k,format_using_decimal(n))
+        print(f"Generated conf for T={TVals[k]}, N={n}")
