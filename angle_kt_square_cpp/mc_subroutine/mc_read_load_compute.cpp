@@ -1856,6 +1856,11 @@ void mc_computation::execute_mc(double * s_vec_init, double * s_angle_vec_init,c
         //save M
         this->save_array_to_pickle(M_all_ptr,3*sweepToWrite,out_M_PickleFileName);
 
+        // Compute order parameter for all saved configurations
+        this->compute_all_order_parameters_parallel();
+        // Save order parameter data
+        std::string out_order_parameter_PickleFileName=this->out_order_parameter_path+"/" + fileNameMiddle + ".order_parameter.pkl";
+        this->save_array_to_pickle(order_parameter_all_ptr,3*sweepToWrite,out_order_parameter_PickleFileName);
 
         // Save final angle configuration (for continuing simulation later)
         std::string out_s_angle_final_PickleFileName = this->out_s_angle_path + "/" + fileNameMiddle + ".s_angle_final.pkl";
@@ -1871,45 +1876,50 @@ void mc_computation::execute_mc(double * s_vec_init, double * s_angle_vec_init,c
 }
 
 
-// /**
-//  * @brief Compute average magnetization for one configuration
-//  * @param Mx Output: x-component of magnetization
-//  * @param My Output: y-component of magnetization
-//  * @param Mz Output: z-component of magnetization
-//  * @param startInd Starting index in s_all_ptr
-//  * @param length Number of spin components (3*N0*N1)
-//  *
-//  * Computes: M_α = (1/N) * Σ_i s_α^i  for α = x, y, z
-//  */
-// void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length)
-// {
-// double sum_x=0, sum_y=0,sum_z=0;
-//
-//     // Sum x-components (at indices 0, 3, 6, ...)
-//     for (int j=startInd;j<startInd+length;j+=3)
-//     {
-//         sum_x+=this->s_all_ptr[j];
-//     }//end for j
-//
-//     Mx=sum_x/static_cast<double>(lattice_num);
-//
-//     // Sum y-components (at indices 1, 4, 7, ...)
-//     for (int j=startInd+1;j<startInd+length;j+=3)
-//     {
-//         sum_y+=this->s_all_ptr[j];
-//     }
-//     My=sum_y/static_cast<double>(lattice_num);
-//
-//     // Sum z-components (at indices 2, 5, 8, ...)
-//     for (int j=startInd+2;j<startInd+length;j+=3)
-//     {
-//         sum_z+=this->s_all_ptr[j];
-//     }
-//     Mz=sum_z/static_cast<double>(lattice_num);
-// }
+/**
+ * @brief Compute average magnetization for one configuration
+ * @param Mx Output: x-component of magnetization
+ * @param My Output: y-component of magnetization
+ * @param Mz Output: z-component of magnetization
+ * @param startInd Starting index in s_all_ptr
+ * @param length Number of spin components (3*N0*N1)
+ *
+ * Computes: M_α = (1/N) * Σ_i s_α^i  for α = x, y, z
+ */
+void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length)
+{
+double sum_x=0, sum_y=0,sum_z=0;
 
-//order parameter , by qyc
-void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz, const int &startInd, const int &length)
+    // Sum x-components (at indices 0, 3, 6, ...)
+    for (int j=startInd;j<startInd+length;j+=3)
+    {
+        sum_x+=this->s_all_ptr[j];
+    }//end for j
+
+    Mx=sum_x/static_cast<double>(lattice_num);
+
+    // Sum y-components (at indices 1, 4, 7, ...)
+    for (int j=startInd+1;j<startInd+length;j+=3)
+    {
+        sum_y+=this->s_all_ptr[j];
+    }
+    My=sum_y/static_cast<double>(lattice_num);
+
+    // Sum z-components (at indices 2, 5, 8, ...)
+    for (int j=startInd+2;j<startInd+length;j+=3)
+    {
+        sum_z+=this->s_all_ptr[j];
+    }
+    Mz=sum_z/static_cast<double>(lattice_num);
+}
+
+/// by qyc
+/// @param val_x x-component of order_parameter
+/// @param val_y y-component of order_parameter
+/// @param val_z z-component of order_parameter
+/// @param startInd Starting index in s_all_ptr for this configuration
+/// @param length Number of components (should be 3*N0*N1)
+void mc_computation::compute_order_parameter(double &val_x, double& val_y,double &val_z,const int &startInd, const int & length)
 {
     double sum_x = 0, sum_y = 0, sum_z = 0;
 
@@ -1925,10 +1935,13 @@ void mc_computation::compute_M_avg_over_sites(double &Mx, double &My, double &Mz
         sum_y += (this->s_all_ptr[j + 1]) * phase;
     }
 
-    Mx = sum_x / static_cast<double>(lattice_num);
-    My = sum_y / static_cast<double>(lattice_num);
-    Mz = 0;
+   val_x = sum_x / static_cast<double>(lattice_num);
+    val_y = sum_y / static_cast<double>(lattice_num);
+   val_z = 0;
 }
+
+
+
 
 //order parameter parallel
 void mc_computation::compute_all_magnetizations_parallel()
@@ -1963,6 +1976,59 @@ void mc_computation::compute_all_magnetizations_parallel()
                 this->M_all_ptr[M_idx] = Mx;
                 this->M_all_ptr[M_idx + 1] = My;
                 this->M_all_ptr[M_idx + 2] = Mz;
+            }
+        });
+    }
+
+    // Wait for all threads to complete
+    for (auto& thread : threads) {
+        thread.join();
+    }
+}
+
+
+
+/** by qyc
+ * @brief Compute order parameter for all saved configurations in parallel
+ *
+ * For each configuration, computes order parameter:
+ * val_α = (1/N) * Σ_i phase_i * s_α^i  for α = x, y, z
+ * where phase_i = (-1)^(n0 mod 2)
+ *
+ * Stores val_x, val_y, val_z for each configuration in order_parameter_all_ptr
+ */
+void mc_computation::compute_all_order_parameters_parallel()
+{
+    int num_threads = num_parallel;
+    int config_size = total_components_num;  // 3*N0*N1
+    int num_configs = sweepToWrite;
+    std::vector<std::thread> threads;
+
+    // Calculate how many configurations each thread will process
+    int configs_per_thread = num_configs / num_threads;
+    int remainder = num_configs % num_threads;
+
+    // Launch threads
+    for (int t = 0; t < num_threads; ++t) {
+        // Calculate range of configurations for this thread
+        int start_config = t * configs_per_thread;
+        int end_config = (t == num_threads - 1) ? start_config + configs_per_thread + remainder
+                                                : start_config + configs_per_thread;
+
+        // Each thread processes a range of configurations
+        threads.emplace_back([this, start_config, end_config, config_size]() {
+            for (int config_idx = start_config; config_idx < end_config; ++config_idx) {
+                double val_x, val_y, val_z;
+                int startInd = config_idx * config_size;
+
+                // Calculate order parameter for this configuration
+                this->compute_order_parameter(val_x, val_y, val_z, startInd, config_size);
+
+                // Store results (3 values per configuration: val_x, val_y, val_z)
+                int order_idx = config_idx * 3;
+                this->order_parameter_all_ptr[order_idx] = val_x;
+                this->order_parameter_all_ptr[order_idx + 1] = val_y;
+                this->order_parameter_all_ptr[order_idx + 2] = val_z;
             }
         });
     }

@@ -267,6 +267,9 @@ public:
             // Magnetization values (Mx, My, Mz) for each configuration
             this->M_all_ptr=new double[sweepToWrite*3];
 
+            //order parameter values (val_x,val_y,val_z) for each configuration
+            this->order_parameter_all_ptr=new double[sweepToWrite*3];
+
         }
         catch (const std::bad_alloc& e)
         {
@@ -297,6 +300,13 @@ public:
             fs::create_directories(out_M_path);
         }
 
+        this->out_order_parameter_path= this->U_s_dataDir + "/out_order/";
+        if (!fs::is_directory(out_order_parameter_path) || !fs::exists(out_order_parameter_path))
+        {
+            fs::create_directories(out_order_parameter_path);
+        }
+
+
         // Set bounds for angle proposals
         // theta ranges from 0 to slightly more than 2π
         this->theta_left_end=0;
@@ -324,6 +334,7 @@ public:
         delete [] M_all_ptr;
         delete[]s_angle_all_ptr;
         delete []s_angle_init;
+        delete[] order_parameter_all_ptr;
     } //end Destructor
 public:
 
@@ -366,6 +377,25 @@ public:
      * @param length Number of components (should be 3*N0*N1)
      */
     void compute_M_avg_over_sites(double &Mx, double &My, double &Mz,const int &startInd, const int & length);
+
+
+    /** by qyc
+ * @brief Compute order parameter for all saved configurations in parallel
+ *
+ * For each configuration, computes order parameter:
+ * val_α = (1/N) * Σ_i phase_i * s_α^i  for α = x, y, z
+ * where phase_i = (-1)^(n0 mod 2)
+ *
+ * Stores val_x, val_y, val_z for each configuration in order_parameter_all_ptr
+ */
+    void compute_all_order_parameters_parallel();
+    /// by qyc
+    /// @param val_x x-component of order_parameter
+    /// @param val_y y-component of order_parameter
+    /// @param val_z z-component of order_parameter
+    /// @param startInd Starting index in s_all_ptr for this configuration
+    /// @param length Number of components (should be 3*N0*N1)
+    void compute_order_parameter(double &val_x, double& val_y,double &val_z,const int &startInd, const int & length);
 
     /**
       * @brief Perform one Monte Carlo sweep updating all spins in parallel
@@ -864,6 +894,7 @@ public:
     std::string out_U_path;     ///< Output path for energy data
     std::string out_s_angle_path;  ///< Output path for angle data
     std::string out_M_path;     ///< Output path for magnetization data
+    std::string out_order_parameter_path; ///< Output path for order parameter data
 
     // ===== Data Storage =====
     double* U_data_all_ptr;      ///< Energy for each saved configuration
@@ -872,6 +903,7 @@ public:
     double* s_angle_all_ptr;     ///< Angles for all configurations
     double* s_init;              ///< Initial spin configuration
     double* s_angle_init;        ///< Initial angle configuration
+    double* order_parameter_all_ptr; ///< order parameter (val_x, va_y, val_z) for all configurations
 
     // ===== Sublattice Structure =====
     std::vector<std::vector<int>> A_sublattice;  ///< Sites with even i, even j
