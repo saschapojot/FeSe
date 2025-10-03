@@ -21,15 +21,15 @@ if os.path.isdir(outPath):
     shutil.rmtree(outPath)
 
 Path(outPath).mkdir(exist_ok=True,parents=True)
-N=6
-which_row=0
+N=16
+which_row=1
 startingFileIndSuggest=30
 sweep_to_write=500
 sweep_multiple=6
 lag=75
 chunk_size = 100
 
-TVals=[0.1,0.5,1,1.5,2]
+TVals= np.arange(0.5,2.1,0.1).round(4).tolist()
 chunks = [TVals[i:i + chunk_size] for i in range(0, len(TVals), chunk_size)]
 
 def contents_to_bash(chk_ind,T_ind,chunks):
