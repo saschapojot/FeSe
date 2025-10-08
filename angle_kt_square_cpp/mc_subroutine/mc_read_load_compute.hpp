@@ -310,10 +310,10 @@ public:
         // Set bounds for angle proposals
         // theta ranges from 0 to slightly more than 2π
         this->theta_left_end=0;
-        this->theta_right_end=2.1*PI;
+        this->theta_right_end=2.0*PI;
         // phi ranges from 0 to slightly more than π
         this->phi_left_end=0;
-        this->phi_right_end=1.1*PI;
+        this->phi_right_end=1.0*PI;
 
         // Step size for proposal distribution
         this->h=0.1;

@@ -25,7 +25,7 @@ jsonDataFromConf =json.loads(sys.argv[1])
 confFileName=jsonDataFromConf["confFileName"]
 TDirRoot=os.path.dirname(confFileName)
 TDirRoot=TDirRoot+"/"
-
+eps=1e-3
 # print(confFileName)
 
 #create directory for raw data of U and s
@@ -67,8 +67,8 @@ def create_init_s(U_s_dataDir):
     s_angle_init_mat=[] #theta, phi, theta, phi,...
     for n0 in range(0,N):
         for n1 in range(0,N):
-            theta=random.uniform(0,2*np.pi)
-            phi=random.uniform(0,np.pi)
+            theta=random.uniform(0+eps,2*np.pi-eps)
+            phi=random.uniform(0+eps,np.pi-eps)
 
             s_angle_init_mat.append(theta)
             s_angle_init_mat.append(phi)
